@@ -1,0 +1,158 @@
+using System;
+
+namespace SharpChess
+{
+	public class HashTableScore: HashTableBase
+	{
+		public enum enmHashType
+		{
+				Exact
+			,	Alpha
+			,	Beta
+		}
+
+		private struct HashEntry
+		{
+			public ulong	HashCodeA;
+			public ulong	HashCodeB;
+			public sbyte	Depth;
+			public enmHashType	Type;
+			public Player.enmColour Colour;
+			public int		Result;
+			public int	WhiteQueenOrdinal;
+		}
+
+		public const int HASH_TABLE_SIZE = 1000777;
+		public const int UNKNOWN = int.MinValue;
+
+		static HashEntry[] m_arrHashEntry = new HashEntry[HASH_TABLE_SIZE];
+
+		public static int SlotsUsed
+		{
+			get
+			{
+				int intCounter = 0;
+
+				for (uint intIndex=0; intIndex<HASH_TABLE_SIZE; intIndex++)
+				{
+					if (m_arrHashEntry[intIndex].HashCodeA != 0)
+					{
+						intCounter++;
+					}
+				}
+				return intCounter;
+			}
+		}
+
+		static HashTableScore()
+		{
+			Clear();
+		}
+
+		public static void Clear()
+		{
+			for (uint intIndex=0; intIndex<HASH_TABLE_SIZE; intIndex++)
+			{
+				m_arrHashEntry[intIndex].HashCodeA = 0;
+				m_arrHashEntry[intIndex].HashCodeB = 0;
+				m_arrHashEntry[intIndex].Depth = sbyte.MinValue;
+				m_arrHashEntry[intIndex].Result = int.MinValue;
+				m_arrHashEntry[intIndex].WhiteQueenOrdinal = -1;
+			}
+			ResetStats();
+		}
+
+		public unsafe static int ProbeHash(int depth, int alpha, int beta, Player.enmColour colour)
+		{
+			fixed (HashEntry* phashBase = &m_arrHashEntry[0])
+			{
+				ulong HashCodeA = Board.HashCodeA;
+				ulong HashCodeB = Board.HashCodeB;
+
+				HashEntry* phashEntry = phashBase;
+				phashEntry += ((uint)(HashCodeA % HASH_TABLE_SIZE));
+
+				m_intProbes++;
+				if ( 
+							phashEntry->HashCodeA == HashCodeA 
+						&&	phashEntry->HashCodeB == HashCodeB 
+						&&	phashEntry->Depth >= depth
+					)
+				{
+					if (phashEntry->Colour==colour)
+					{
+						if ( phashEntry->Type==enmHashType.Exact )
+						{
+							m_intHits++;
+							return phashEntry->Result;
+						}
+						if ( (phashEntry->Type==enmHashType.Alpha) && (phashEntry->Result<=alpha))
+						{
+							m_intHits++;
+							return alpha;
+						}
+						if ( (phashEntry->Type==enmHashType.Beta) && (phashEntry->Result>=beta))
+						{
+							m_intHits++;
+							return beta;
+						}
+					}
+/*
+					else
+					{
+						if ( phashEntry->Type==enmHashType.Exact )
+						{
+							m_intHits++;
+							return -phashEntry->Result;
+						}
+						if ( (phashEntry->Type==enmHashType.Beta) && (-phashEntry->Result<=alpha))
+						{
+							return alpha;
+						}
+						if ( (phashEntry->Type==enmHashType.Alpha) && (-phashEntry->Result>=beta))
+						{
+							return beta;
+						}
+
+					}
+*/
+				}
+			}
+			return UNKNOWN;
+		}
+		
+		public unsafe static void RecordHash(int depth, int val, enmHashType type, Player.enmColour colour)
+		{
+			fixed (HashEntry* phashBase = &m_arrHashEntry[0])
+			{
+				ulong HashCodeA = Board.HashCodeA;
+				ulong HashCodeB = Board.HashCodeB;
+
+				m_intWrites++;
+
+				HashEntry* phashEntry = phashBase;
+				phashEntry += ((uint)(HashCodeA % HASH_TABLE_SIZE));
+
+				if (phashEntry->Result!=int.MinValue)
+				{
+					m_intCollisions++;
+					if (phashEntry->HashCodeA!=HashCodeA || phashEntry->HashCodeB!=HashCodeB)
+					{
+						m_intOverrides++;
+					}
+				}
+
+//				if (phashEntry->Depth<=depth)
+//				{
+					phashEntry->HashCodeA = HashCodeA;
+					phashEntry->HashCodeB = HashCodeB;
+					phashEntry->Depth = (sbyte)depth;
+					phashEntry->Type = type;
+					phashEntry->Colour = colour;
+					phashEntry->Result = val;
+//				}
+			}
+		}
+
+	}
+}

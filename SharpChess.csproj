@@ -1,0 +1,189 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <ProjectType>Local</ProjectType>
+    <ProductVersion>7.10.3077</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{F5FD2F27-6DCB-453C-B018-0AC8D4BC4109}</ProjectGuid>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ApplicationIcon>App.ico</ApplicationIcon>
+    <AssemblyKeyContainerName />
+    <AssemblyName>SharpChess</AssemblyName>
+    <AssemblyOriginatorKeyFile />
+    <DefaultClientScript>JScript</DefaultClientScript>
+    <DefaultHTMLPageLayout>Grid</DefaultHTMLPageLayout>
+    <DefaultTargetSchema>IE50</DefaultTargetSchema>
+    <DelaySign>false</DelaySign>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>SharpChess</RootNamespace>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+    <StartupObject />
+    <FileUpgradeFlags>
+    </FileUpgradeFlags>
+    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <UpgradeBackupLocation>
+    </UpgradeBackupLocation>
+    <OldToolsVersion>0.0</OldToolsVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <BaseAddress>285212672</BaseAddress>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <ConfigurationOverrideFile />
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DocumentationFile />
+    <DebugSymbols>true</DebugSymbols>
+    <FileAlignment>4096</FileAlignment>
+    <NoStdLib>false</NoStdLib>
+    <NoWarn />
+    <Optimize>false</Optimize>
+    <RegisterForComInterop>false</RegisterForComInterop>
+    <RemoveIntegerChecks>false</RemoveIntegerChecks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>4</WarningLevel>
+    <DebugType>full</DebugType>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <BaseAddress>285212672</BaseAddress>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <ConfigurationOverrideFile />
+    <DefineConstants />
+    <DocumentationFile />
+    <DebugSymbols>false</DebugSymbols>
+    <FileAlignment>4096</FileAlignment>
+    <NoStdLib>false</NoStdLib>
+    <NoWarn />
+    <Optimize>true</Optimize>
+    <RegisterForComInterop>false</RegisterForComInterop>
+    <RemoveIntegerChecks>false</RemoveIntegerChecks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>4</WarningLevel>
+    <DebugType>none</DebugType>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System">
+      <Name>System</Name>
+    </Reference>
+    <Reference Include="System.Data">
+      <Name>System.Data</Name>
+    </Reference>
+    <Reference Include="System.Drawing">
+      <Name>System.Drawing</Name>
+    </Reference>
+    <Reference Include="System.Windows.Forms">
+      <Name>System.Windows.Forms</Name>
+    </Reference>
+    <Reference Include="System.Xml">
+      <Name>System.XML</Name>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Board.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="frmMain.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Game.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="HashTable.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="HashTableCheck.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="HashTablePawn.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="History.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="IPieceTop.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Move.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Moves.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Piece.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PieceBishop.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PieceKing.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PieceKnight.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PiecePawn.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PieceQueen.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PieceRook.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Pieces.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Player.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PlayerBlack.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PlayerWhite.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Square.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Squares.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Content Include="App.ico" />
+    <Content Include="xBackup.txt" />
+    <Content Include="xCheckHashTable.txt">
+      <SubType>Code</SubType>
+    </Content>
+    <Content Include="xGNUeval.txt" />
+    <Content Include="xHashTable.txt" />
+    <Content Include="xHashTableBase.txt">
+      <SubType>Code</SubType>
+    </Content>
+    <Content Include="xHashTableMove.txt">
+      <SubType>Code</SubType>
+    </Content>
+    <Content Include="xHashTableScore.txt">
+      <SubType>Code</SubType>
+    </Content>
+    <Content Include="xImport.txt" />
+    <Content Include="xOpeningBook.txt">
+      <SubType>Code</SubType>
+    </Content>
+    <EmbeddedResource Include="frmMain.resx">
+      <DependentUpon>frmMain.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent />
+    <PostBuildEvent />
+  </PropertyGroup>
+</Project>

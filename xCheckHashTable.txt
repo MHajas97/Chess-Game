@@ -1,0 +1,31 @@
+using System;
+
+namespace SharpChess
+{
+		public class CheckHashTable
+	{
+		private struct HashEntry
+		{
+			public ulong	Key;
+			public bool		IsInCheck;
+		}
+
+		public const int HASH_TABLE_SIZE = 1000007;
+		static HashEntry[] m_arrHashEntry = new HashEntry[HASH_TABLE_SIZE];
+
+		public CheckHashTable()
+		{
+			Clear();
+		}
+
+		public static void Clear()
+		{
+			for (uint intIndex=0; intIndex<HASH_TABLE_SIZE; intIndex++)
+			{
+				m_arrHashEntry[intIndex].Key = 0;
+				m_arrHashEntry[intIndex].IsInCheck = false;
+			}
+		}
+
+	}
+}

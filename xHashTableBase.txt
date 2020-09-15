@@ -1,0 +1,49 @@
+using System;
+
+namespace SharpChess
+{
+	public abstract class xHashTableBase
+	{
+		protected static int m_intProbes = 0;
+		protected static int m_intHits = 0;
+		protected static int m_intWrites = 0;
+		protected static int m_intCollisions = 0;
+		protected static int m_intOverwrites = 0;
+
+		public static int Probes
+		{
+			get {return m_intProbes;}
+		}
+
+		public static int Hits
+		{
+			get {return m_intHits;}
+		}
+
+		public static int Writes
+		{
+			get {return m_intWrites;}
+		}
+
+		public static int Collisions
+		{
+			get { return m_intCollisions; }
+		}
+
+		public static int Overwrites
+		{
+			get { return m_intOverwrites; }
+		}
+
+		public static void ResetStats()
+		{
+			m_intProbes = 0;
+			m_intHits = 0;
+			m_intWrites = 0;
+			m_intCollisions = 0;
+			m_intOverwrites = 0;
+		}
+
+		
+	}
+}

@@ -1,0 +1,907 @@
+			// Adaptive Null-move forward pruning
+//			R = (depth>6 && Game.Stage!=Game.enmStage.End) ? 3 : 2;
+			// Verified Null-move forward pruning
+			if (!player.IsInCheck && (!verify || depth > 1) && depth>1)
+			{
+				Move moveNull = new Move(Game.TurnNo, 0, Move.enmName.NullMove, null, null, null, null, 0, 0);
+				val = -AlphaBeta(player.OtherPlayer, depth - 1 - R, -beta, -beta + 1, verify, ref moveAnalysed);
+				if ((DateTime.Now-m_PlayerClock.TurnStartTime) > m_tsnThinkingTimeMaxAllowed) goto TimeExpired;
+				if (val >= beta)
+				{
+					if (verify) 
+					{
+						depth--; /* reduce the depth by one ply */
+						/* turn verification off for the sub-tree */
+						verify = false;
+						/* mark a fail-high flag, to detect zugzwangs later*/
+						failhigh = true;
+					}
+					else /* cutoff in a sub-tree with fail-high report */
+					{
+						return val;
+//						return beta;
+					}
+				}
+			}
+
+
+
+/*
+			// Adaptive Null-move forward pruning
+			R = (depth>6 && Game.Stage!=Game.enmStage.End) ? 3 : 2;
+			if (depth >= R && m_intSearchDepth >= m_intStartNullMovePuningAtDepth)
+			{
+				Move moveNull = new Move(Game.TurnNo, 0, Move.enmName.NullMove, null, null, null, null, 0, 0);
+				val = -AlphaBeta(player.OtherPlayer, depth - 1 - R, -beta, -beta + 1, ref moveAnalysed);
+				if ((DateTime.Now-m_PlayerClock.TurnStartTime) > m_tsnThinkingTimeMaxAllowed) goto TimeExpired;
+				if (val >= beta)
+				{
+					return beta;
+				}
+			}
+*/
+
+
+				// Enhanced Transposition Cutoff
+				foreach (Move movex in movesPossible)
+				{
+					if ( ((val = HashTable.ProbeHash(movex.HashCodeA, movex.HashCodeB, depth, alpha, beta, player.Colour)) != HashTable.UNKNOWN) && val>=beta)
+					{
+						return beta;
+					}
+				}
+
+
+
+/*
+					// Futility Pruning
+					switch (depth)
+					{
+						case 2:
+						case 3:
+						case 4:
+							if (move.PieceTaken==null && !player.IsInCheck && !move.IsEnemyInCheck)
+							{
+								if ( (val = HashTable.ProbeHash(Board.HashKey, depth, alpha, beta, player.Colour)) == HashTable.UNKNOWN )
+								{
+									val = -player.OtherPlayer.Score;	m_intEvaluations++;
+									HashTable.RecordHash(Board.HashKey, depth, val, HashTable.HashType.Exact, -1, -1, Move.enmName.NullMove, player.Colour);
+								}
+
+								switch (depth)
+								{
+									case 2:
+										// Standard Futility Pruning
+										if (val+3250<=alpha)
+										{
+											depth--;
+										}
+										break;
+
+									case 3:
+										// Extended Futility Pruning
+										if (val+5000<=alpha)
+										{
+											depth--;
+										}
+										break;
+
+									case 4:
+										// Razoring
+										if (val+9750<=alpha)
+										{
+											depth--;
+										}
+										break;
+
+								}
+							}
+							break;
+					}
+*/
+
+
+
+
+		public Move MakeNextAIMove()
+		{
+			m_dtmEnd = DateTime.Now + m_tsnTimeAllowed;
+			m_intCurrentMoveNo = 0;
+			int alpha = MIN_SCORE;
+			int beta = MAX_SCORE;
+			HashTable.Clear();
+			m_intSearchDepth = 4;
+			//			mtd(0, m_intSearchDepth);
+			alphabeta(this, m_intSearchDepth, alpha, beta);
+			return m_moveBest.Piece.Move(m_moveBest.Name, m_moveBest.To);
+		}
+
+		int mtd(int f, int depth) 
+		{
+			int upperbound=MAX_SCORE;
+			int lowerbound=-MIN_SCORE;
+			int g = f;
+			int beta;
+			do 
+			{
+				if (g==lowerbound) beta=g+1; else beta=g;
+				g=alphabeta(this, depth, beta-1, beta);
+				if (g < beta) upperbound=g; else lowerbound=g;
+			} while (lowerbound < upperbound);
+			return g;
+		}
+
+		int alphabeta(Player player, int depth, int alpha, int beta)
+		{
+			HashTable.HashType hashType = HashTable.HashType.Alpha;
+			int val = 0;
+
+			if ( (val = HashTable.ProbeHash(Board.HashKey, depth, alpha, beta, player.Colour)) != HashTable.UNKNOWN )
+			{ 
+				return val;
+			}
+
+			if (depth <= 0)
+			{
+				return -player.OtherPlayer.Score;
+			}
+
+			Move moveMade;
+			Moves movesPossible = new Moves();
+			player.GenerateLazyMoves(movesPossible);
+
+			if (depth==m_intSearchDepth) m_intTotalMoves = movesPossible.Count; // Can remove
+
+			foreach (Move move in movesPossible)
+			{
+				moveMade = move.Piece.Move(move.Name, move.To);
+				val = -alphabeta(player.OtherPlayer, depth-1, -beta, -alpha);
+				Move.Undo(moveMade);
+				if (val >= beta) 
+				{
+					HashTable.RecordHash(Board.HashKey, depth, beta, HashTable.HashType.Beta, -1, -1, Move.enmName.NullMove, player.Colour);
+					return beta;
+				}
+				if (val > alpha)
+				{
+					hashType = HashTable.HashType.Exact;
+					alpha = val;
+					if (depth==m_intSearchDepth)
+					{
+						m_moveBest = moveMade;
+					}
+				}
+
+				if (depth==m_intSearchDepth) {m_intCurrentMoveNo++;	MoveConsidered(); } // Can remove
+
+			}
+			HashTable.RecordHash(Board.HashKey, depth, alpha, hashType, -1, -1, Move.enmName.NullMove, player.Colour);
+			return alpha;
+		}
+
+
+
+
+
+		public bool xCanBeMovedToBy(Player player)
+		{
+			Piece piece;
+
+			// Pawn
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) return true;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return true;
+
+			// Bishop & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17)!=null) return true;
+				
+			// Rook & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16)!=null) return true;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16)!=null) return true;
+
+			// King!
+			piece = Board.GetPiece( m_intOrdinal+16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal+17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal+1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal-15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal-16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal-17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal-1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+			piece = Board.GetPiece( m_intOrdinal+15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return true; 
+
+			return false;
+		}
+
+
+
+
+		
+		public Move MakeNextAIMove_old()
+		{
+			Move moveThis;
+			Move moveBest = null;
+			int intBestScore = MIN_SCORE;
+			int intIndex;
+			Piece piece;
+			Moves moves = new Moves();
+			int intMyMoves = 0;
+			int intEnemyMoves = 0;
+			int intDepth = 4;
+
+			for (intIndex=this.m_colPieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = this.m_colPieces.Item(intIndex);
+				intMyMoves += piece.PossibleMoves.Count;
+			}
+			for (intIndex=this.OtherPlayer.Pieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = this.OtherPlayer.Pieces.Item(intIndex);
+				intEnemyMoves += piece.PossibleMoves.Count;
+			}
+			m_intTotalMoves = Convert.ToInt32(Math.Pow(intMyMoves * intEnemyMoves, (intDepth)/2));
+			m_intCurrentMoveNo = 0;
+
+			Moves movesPossible = new Moves();
+			for (intIndex=this.m_colPieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = this.m_colPieces.Item(intIndex);
+				movesPossible = piece.PossibleMoves;
+				foreach (Move move in movesPossible)
+				{
+					moveThis = piece.Move(move.Name, move.To);
+ 
+					moveThis.Score = AnalyseEnemyMoves(intDepth-2);
+					if (moveThis.Score > intBestScore)
+					{
+						intBestScore = moveThis.Score;
+					}
+
+					this.MoveConsidered();
+
+					moves.Add(moveThis);
+					Move.Undo(moveThis);
+				}
+
+			}
+
+			for (intIndex=moves.Count-1; intIndex>=0; intIndex--)
+			{
+				moveThis = moves.Item(intIndex);
+				if (moveThis.Score < intBestScore)
+				{
+					moves.Remove(moveThis);
+				}
+			}
+
+			if (moves.Count == 1)
+			{
+				moveBest = moves.Item(0);
+			}
+			else
+			{
+				//					moveBest = moves.Item( (int)(0) );
+				moveBest = moves.Item( (int)(DateTime.Now.Millisecond % moves.Count) );
+			}
+
+			return moveBest.Piece.Move(moveBest.Name, moveBest.To);
+		}
+
+		private int AnalyseEnemyMoves(int intDepth)
+		{
+			int intWorstScore = int.MaxValue;
+			Move moveThis;
+			Piece piece;
+
+			Moves movesPossible = new Moves();
+			for (int intIndex=this.OtherPlayer.Pieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = this.OtherPlayer.Pieces.Item(intIndex);
+				movesPossible = piece.PossibleMoves;
+				foreach (Move move in movesPossible)
+				{
+					moveThis = piece.Move(move.Name, move.To);
+					if (intDepth>0)
+					{
+						moveThis.Score = AnalyseMyMoves(intDepth-1);
+					}
+					else
+					{
+						moveThis.Score = this.Score;
+						this.m_intCurrentMoveNo++;
+					}
+
+					if (moveThis.Score < intWorstScore)
+					{
+						intWorstScore = moveThis.Score;
+					}
+					Move.Undo(moveThis);
+				}
+			}
+			if (intWorstScore==int.MaxValue)
+			{
+				intWorstScore = this.Score;
+			}
+			if (intWorstScore>100000000)
+			{
+				intWorstScore /= (10-intDepth);
+			}
+			return intWorstScore;
+		}
+
+		private int AnalyseMyMoves(int intDepth)
+		{
+			Move moveThis;
+			int intBestScore = MIN_SCORE;
+			int intIndex;
+			Piece piece;
+
+			Moves movesPossible = new Moves();
+			for (intIndex=this.m_colPieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = this.m_colPieces.Item(intIndex);
+				movesPossible = piece.PossibleMoves;
+				foreach (Move move in movesPossible)
+				{
+					moveThis = piece.Move(move.Name, move.To);
+
+					if (intDepth>0)
+					{
+						moveThis.Score = AnalyseEnemyMoves(intDepth-1);
+					}
+					else
+					{
+						moveThis.Score = this.Score;
+						this.m_intCurrentMoveNo++;
+					}
+
+					if (moveThis.Score > intBestScore)
+					{
+						intBestScore = moveThis.Score;
+					}
+
+					Move.Undo(moveThis);
+				}
+			}
+			if (intBestScore==MIN_SCORE)
+			{
+				intBestScore = this.Score;
+			}
+			if (intBestScore>100000000)
+			{
+				intBestScore /= (10-intDepth);
+			}
+			return intBestScore;
+		}
+
+
+
+
+
+
+
+
+
+
+
+
+				// Search last iteration's best move first from Transition Table
+				if ( (moveThis = HashTable.ProbeForBestMove(Board.HashKey, player.Colour)) != null )
+				{
+					m_moveCurrent = moveThis.Piece.Move(moveThis.Name, moveThis.To);
+					this.MoveConsidered();
+					m_moveCurrent.Score = alpha = -AlphaBeta(player.OtherPlayer, m_intSearchDepth-1, -beta, -alpha, m_moveCurrent);
+					m_moveCurrent.Alpha = alpha;
+					m_moveCurrent.Beta = beta;
+					Move.Undo(m_moveCurrent);
+					moveDepthBest = m_moveBest = m_moveCurrent;
+					if (m_blnIsDebug)
+					{
+						Game.MovesAnalysis.Add(m_moveCurrent);
+					}
+					this.MoveConsidered();
+				}
+
+
+
+
+
+				// Give last iteration's best move first from Transition Table a big history bonus so that it gets sorted to the top of the generated move list
+				if ( (moveThis = HashTable.ProbeForBestMove(Board.HashKey, player.Colour)) != null )
+				{
+					m_moveCurrent = moveThis.Piece.Move(moveThis.Name, moveThis.To);
+					History.Record(m_moveCurrent.From.Ordinal, m_moveCurrent.To.Ordinal, m_moveCurrent.Score); // Update history heuristic data
+				}
+
+
+
+
+
+		private int Quies(Player player, int alpha, int beta)
+		{
+			int val = int.MinValue;
+
+			if ( (val = HashTable.ProbeHash(Board.HashKey, 0, alpha, beta, player.Colour)) == HashTable.UNKNOWN )
+			{
+				val = -player.OtherPlayer.Score;	m_intEvaluations++;
+				HashTable.RecordHash(Board.HashKey, 0, val, HashTable.HashType.Exact, -1, -1, Move.enmName.NullMove, player.Colour );
+			}
+			if (val>100000000 || val<-100000000)
+			{
+				return val;
+			}
+
+			if (val >= beta)
+			{
+				return beta;
+			}
+			if (val > alpha)
+			{
+				alpha = val;
+			}
+
+			HashTable.HashType hashType = HashTable.HashType.Alpha;
+			Move moveThis = null;
+			Move moveBest = null;
+
+			// Search last iteration's best move first, from the Transition Table
+			if ( (moveThis = HashTable.ProbeForBestMove(Board.HashKey, player.Colour)) != null )
+			{
+				moveThis = moveThis.Piece.Move(moveThis.Name, moveThis.To);
+				moveThis.Score = val = -Quies(player.OtherPlayer, -beta, -alpha);
+				Move.Undo(moveThis);
+				moveBest = moveThis;
+
+				if (val > alpha)
+				{
+					alpha = val;
+				}
+			}
+
+			int intIndex;
+			Piece piece;
+
+			Moves movesPossible = new Moves();
+			for (intIndex=player.Pieces.Count-1; intIndex>=0; intIndex--)
+			{
+				piece = player.Pieces.Item(intIndex);
+				piece.GenerateLazyMoves(movesPossible, Moves.enmMovesType.Recaptures_Promotions);
+
+				foreach (Move move in movesPossible)
+				{
+					move.SetScoreToRating();
+				}
+			}
+			movesPossible.SortByScore();
+
+			for (intIndex=movesPossible.Count-1; intIndex>=0; intIndex--)
+			{
+				moveThis = movesPossible.Item(intIndex);
+				piece = moveThis.Piece;
+				moveThis = piece.Move(moveThis.Name, moveThis.To);
+
+				moveThis.Score = val = -Quies(player.OtherPlayer, -beta, -alpha);
+				moveThis.Alpha = alpha;
+				moveThis.Beta = beta;
+
+				Move.Undo(moveThis);
+
+				if (val >= beta)
+				{
+					alpha = beta;
+					goto ExitHere;
+				}
+				if (val > alpha)
+				{
+					alpha = val;
+					hashType = HashTable.HashType.Exact;
+					moveBest = moveThis;
+				}
+				//				if (DateTime.Now > m_dtmEnd) goto ExitHere;
+			}
+
+			if (moveBest!=null)
+			{
+				HashTable.RecordHash(Board.HashKey, 0, moveBest.Score, hashType, moveBest.From.Ordinal, moveBest.To.Ordinal, moveBest.Name, player.Colour);
+			}
+			else
+			{
+				HashTable.RecordHash(Board.HashKey, 0, alpha, hashType, -1, -1, Move.enmName.NullMove, player.Colour);
+			}
+
+			ExitHere:
+				return alpha;
+		}
+
+
+
+
+		public void Import(string strFileName)
+		{
+			this.New();
+			XmlDocument xmldoc = new XmlDocument();
+			XmlElement xmlnodeRoot = xmldoc.CreateElement("OpeningBook");
+			XmlElement xmlnodeLine = null;
+			XmlElement xmlnodeMove = null;
+			FileStream filestream = new FileStream(@"c:\obook.txt", System.IO.FileMode.Open);
+			int intByte = -1;
+			char charNext;
+			enmState state = enmState.LineName;
+			Move move = null;
+
+			xmldoc.AppendChild(xmlnodeRoot);
+
+			while ((intByte=filestream.ReadByte())!=-1)
+			{
+				charNext = Convert.ToChar((intByte & 0xFF));
+				switch (state)
+				{
+					case enmState.LineName:
+						if (char.IsDigit(charNext)) {state=enmState.WhiteScore; filestream.Seek(-1, SeekOrigin.Current);}
+						if (char.IsWhiteSpace(charNext)) xmlnodeLine.SetAttribute("Name", xmlnodeLine.GetAttribute("Name")+" ");
+						if (char.IsLetter(charNext) && xmlnodeLine==null) 
+						{
+							xmlnodeLine = xmldoc.CreateElement("Line");
+							xmlnodeRoot.AppendChild(xmlnodeLine);
+							xmlnodeLine.SetAttribute("Name", "");
+							xmlnodeLine.SetAttribute("WhiteScore", "0");
+							xmlnodeLine.SetAttribute("BlackScore", "0");
+						}
+						if ((char.IsLetter(charNext) || char.IsPunctuation(charNext) ) && xmlnodeLine!=null) xmlnodeLine.SetAttribute("Name", xmlnodeLine.GetAttribute("Name")+charNext.ToString());
+						break;
+					case enmState.WhiteScore:
+						if (char.IsWhiteSpace(charNext)) state=enmState.BlackScore;
+						if (char.IsDigit(charNext)) xmlnodeLine.SetAttribute("WhiteScore", (int.Parse(xmlnodeLine.GetAttribute("WhiteScore"))*10+int.Parse(charNext.ToString())).ToString() );
+						break;
+					case enmState.BlackScore:
+						if (char.IsWhiteSpace(charNext)) state=enmState.DrawScore;
+						if (char.IsDigit(charNext)) xmlnodeLine.SetAttribute("BlackScore", (int.Parse(xmlnodeLine.GetAttribute("BlackScore"))*10+int.Parse(charNext.ToString())).ToString() );
+						break;
+					case enmState.DrawScore:
+						if (char.IsWhiteSpace(charNext)) state=enmState.MoveNo;
+						break;
+					case enmState.MoveNo:
+						if (charNext==13) {state=enmState.LineName; filestream.ReadByte(); xmlnodeLine=null; xmlnodeMove=null; break;}
+						if (char.IsWhiteSpace(charNext)) state=enmState.MoveNotation;
+						if (char.IsLetter(charNext)) {state=enmState.MoveNotation; filestream.Seek(-1, SeekOrigin.Current); }
+						break;
+					case enmState.MoveNotation:
+						if (charNext==13) {state=enmState.LineName; filestream.ReadByte(); xmlnodeLine=null; xmlnodeMove=null; break;}
+						if (char.IsWhiteSpace(charNext)) {state=enmState.MoveNotation; xmlnodeMove=null;}
+						if (char.IsDigit(charNext) && xmlnodeMove==null) {state=enmState.MoveNo; xmlnodeMove=null;}
+						if (char.IsLetter(charNext) && xmlnodeMove==null)
+						{ 
+							xmlnodeMove = xmldoc.CreateElement("Move"); 
+							xmlnodeLine.AppendChild(xmlnodeMove); 
+							xmlnodeMove.SetAttribute("Notation", "");
+						}
+						if (char.IsLetterOrDigit(charNext) && xmlnodeMove!=null) { xmlnodeMove.SetAttribute("Notation", xmlnodeMove.GetAttribute("Notation")+charNext.ToString());}
+						break;
+				}
+			}
+			filestream.Close();
+
+			XmlNodeList xmlnodelistLines = xmldoc.SelectNodes("//Line");
+			foreach (XmlElement xmlnodeMyLine in xmlnodelistLines)
+			{
+				this.New();
+				foreach(XmlElement xmlnodeMyMove in xmlnodeMyLine.ChildNodes)
+				{
+					move = this.PlayerToPlay.MoveFromNotation( xmlnodeMyMove.GetAttribute("Notation") );
+					xmlnodeMyMove.SetAttribute("From", move.From.Name);
+					xmlnodeMyMove.SetAttribute("To", move.To.Name);
+					xmlnodeMyMove.SetAttribute("Name", move.Name.ToString());
+					xmlnodeMyMove.SetAttribute("FromOrdinal", move.From.Ordinal.ToString());
+					xmlnodeMyMove.SetAttribute("ToOrdinal", move.To.Ordinal.ToString());
+					this.MakeAHumanMove(move.Name, move.Piece, move.To);
+				}
+			}
+
+			xmldoc.Save(@"c:\OpeningBook.xml");			
+		}
+
+		private int EnemySafeChecksPenalty()
+		{
+			int intNoOfChecks = 0;
+			Move moveThis = null;
+			Moves movesPossible = new Moves();
+			Piece pieceChecking = m_Base.Square.EnemyPieceAttacking(m_Base.Player.OtherPlayer);
+			Square squareChecking = pieceChecking==null ? null : pieceChecking.Square;
+
+			this.m_Base.Player.OtherPlayer.GenerateLazyMoves(movesPossible, Moves.enmMovesType.All, null);
+			foreach (Move move in movesPossible)
+			{
+				if (!move.To.IsAttackedBy(this.m_Base.Player))
+				{
+					moveThis = move.Piece.Move(move.Name, move.To);
+					if (this.m_Base.Square.IsAttackedByExceptSquare(this.m_Base.Player.OtherPlayer, squareChecking))
+					{
+						intNoOfChecks++;
+					}
+					Move.Undo(moveThis);
+					if (intNoOfChecks >= 4 ) break;
+				}
+			}
+			return CheckValues[intNoOfChecks];
+		}
+
+		public bool IsAttackedByExceptSquare(Player player, Square squareExcept)
+		{
+			Piece piece;
+
+			// Pawn
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true;
+
+			// Bishop & Queen
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17))!=null && piece.Square!=squareExcept) return true;
+				
+			// Rook & Queen
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16))!=null && piece.Square!=squareExcept) return true;
+			if ((piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16))!=null && piece.Square!=squareExcept) return true;
+
+			// King!
+			piece = Board.GetPiece( m_intOrdinal+16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal+17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal+1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal-15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal-16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal-17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal-1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+			piece = Board.GetPiece( m_intOrdinal+15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour && piece.Square!=squareExcept) return true; 
+
+			return false;
+		}
+
+
+		public Piece EnemyPieceAttacking(Player player)
+		{
+			Moves moves = new Moves();
+			Piece piece;
+
+			// Pawn
+//			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) moves.Add(player.Game.TurnNo, player.Game.TurnNo-1, Move.enmName.Standard, piece, m_intOrdinal-player.PawnAttackLeftOffset, this, this.Piece, );
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) return piece;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+
+			// Bishop & Queen
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17); if (piece!=null) return piece;
+				
+			// Rook & Queen
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16); if (piece!=null) return piece;
+
+			// King!
+			piece = Board.GetPiece( m_intOrdinal+16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+
+			return null;
+		}
+
+
+		public Piece EnemyPieceMoveListAttacking(Player player, Moves moves)
+		{
+			Piece piece;
+
+			// Pawn
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) return piece;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) return piece;
+
+			// Bishop & Queen
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17); if (piece!=null) return piece;
+				
+			// Rook & Queen
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16); if (piece!=null) return piece;
+			piece = Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16); if (piece!=null) return piece;
+
+			// King!
+			piece = Board.GetPiece( m_intOrdinal+16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal-1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+			piece = Board.GetPiece( m_intOrdinal+15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) return piece; 
+
+			return null;
+		}
+
+
+
+		public int NoOfAttacksBy(Player player)
+		{
+			Piece piece;
+			int intNoOfAttacks = 0;
+
+			// Pawn
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+
+			// Bishop & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17)!=null) intNoOfAttacks++;
+				
+			// Rook & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16)!=null) intNoOfAttacks++;
+
+			return intNoOfAttacks;
+		}
+
+		public int NoOfXRayAttacksBy(Player player)
+		{
+			// As per NoOfAttacks, except attacking pieces can see through pieces of own colour
+			Piece piece;
+			int intNoOfAttacks = 0;
+
+			// Pawn
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackLeftOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-player.PawnAttackRightOffset ); if (piece!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+				
+			// Knight
+			piece = Board.GetPiece( m_intOrdinal+33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-33 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal-18 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+14 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+			piece = Board.GetPiece( m_intOrdinal+31 ); if (piece!=null && piece.Name==Piece.enmName.Knight && piece.Player.Colour==player.Colour) intNoOfAttacks++;
+
+			// Bishop & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 15)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, 17)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -15)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Bishop, this, -17)!=null) intNoOfAttacks++;
+				
+			// Rook & Queen
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 1)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -1)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, 16)!=null) intNoOfAttacks++;
+			if (Board.LinesFirstPiece(player.Colour, Piece.enmName.Rook, this, -16)!=null) intNoOfAttacks++;
+
+			// King!
+			piece = Board.GetPiece( m_intOrdinal+16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal+17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal+1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal-15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal-16 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal-17 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal-1  ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+			piece = Board.GetPiece( m_intOrdinal+15 ); if (piece!=null && piece.Name==Piece.enmName.King && piece.Player.Colour==player.Colour) intNoOfAttacks++; 
+
+			return intNoOfAttacks;
+		}
+
+
+
+		public static void XRayLineThreatenedBy(Player player, Squares squares, Square squareStart, int Offset)
+		{
+			int intOrdinal = squareStart.Ordinal;
+			Square square;
+
+			intOrdinal += Offset;
+			while ( (square = Board.GetSquare(intOrdinal))!=null )
+			{
+				if ( square.Piece==null || (square.Piece.Name!=Piece.enmName.Pawn && square.Piece.CanBeTaken)  )
+				{
+					squares.Add(square);
+				}
+				else if ( square.Piece.Name==Piece.enmName.Pawn && square.Piece.Player.Colour!=player.Colour )
+				{
+
+					squares.Add(square);
+					break;
+				}
+				else
+				{
+					break;
+				}
+				intOrdinal += Offset;
+			}				
+		}
+
+		public static int LinesNoOfAttacksBy(Player.enmColour colour, Piece.enmName PieceName, Square squareStart, int Offset)
+		{
+			int intNoOfAttacks = 0;
+			int intOrdinal = squareStart.Ordinal;
+			Square square;
+
+			intOrdinal += Offset;
+			while ( (square = Board.GetSquare(intOrdinal))!=null )
+			{
+
+				if ( square.Piece==null )
+				{
+				}
+				else if ( square.Piece.Player.Colour!=colour )
+				{
+					return intNoOfAttacks;
+				}
+				else if ( square.Piece.Name==PieceName || square.Piece.Name==Piece.enmName.Queen )
+				{
+					intNoOfAttacks++;
+				}
+				intOrdinal += Offset;
+			}
+			return intNoOfAttacks;
+		}
+

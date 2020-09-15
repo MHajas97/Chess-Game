@@ -1,0 +1,531 @@
+// Bishop
+
+		public int PositionalValue
+		{
+			get
+			{
+				int intPoints = 0;
+				// Bishops are given a bonus of 14(0) points if they lie on the edge of the board up to 
+				// 22(0) points if the lie in the centre.
+				switch (this.m_Base.Square.File)
+				{
+					case 3: intPoints += 220; break;
+					case 4: intPoints += 220; break;
+					case 0: intPoints += 140; break;
+					case 7: intPoints += 140; break;
+				}
+
+				Player playerEnemy = m_Base.Player.OtherPlayer;
+				
+				// Bishops get a bonus for mobility and Xray mobility through pieces but not pawns. 
+				// This bonus ranges from -4 points for a totally blocked bishop up to 18(0) points for a bishop attacking 12 or more squares.
+				intPoints += SquaresThreatened.Count * 10;
+
+				Squares squares = new Squares();
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, 15);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, 17);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, -15);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, -17);
+				intPoints += SquaresThreatened.Count * 10;
+
+				int intEnemyKingSquareOrdinal = m_Base.Player.OtherPlayer.King.Square.Ordinal;
+
+				foreach (Square square in squares)
+				{
+					// A bishop is given a bonus of up to 5(0) points for each attack to a square adjacent to the enemy king. 
+					if (square.Ordinal==intEnemyKingSquareOrdinal-17) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal-16) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal-15) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal- 1) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal+ 1) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal+15) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal+16) intPoints += 50;
+					if (square.Ordinal==intEnemyKingSquareOrdinal+17) intPoints += 50;
+
+					// Xray attacks on any undefended piece are given an 8(0) point bonus.
+					if (square.Piece!=null && square.Piece.Player.Colour==playerEnemy.Colour && !square.IsDefendedBy(playerEnemy)) intPoints += 80;
+
+					if (square.Piece!=null && square.Piece.Player.Colour==playerEnemy.Colour)
+					{
+						// Xray attacks on an enemy R,Q,K or any undefended piece are given an 8(0) point bonus.
+						switch (square.Piece.Name )
+						{
+							case Piece.enmName.Rook: intPoints += 80; break;
+							case Piece.enmName.Queen: intPoints += 80; break;
+							case Piece.enmName.King: intPoints += 80; break;
+						}
+					}
+				}
+
+				if (Game.Stage != Game.enmStage.End)
+				{
+					if (!m_Base.CanBeDrivenAwayByPawn())
+					{
+						intPoints+=240;
+					}
+				}
+
+				return intPoints;
+			}
+		}
+
+// King
+		public int PositionalValue
+		{
+			get
+			{
+return 0;
+				int intPoints = 0;
+
+				Game.enmStage stage = Game.Stage;
+				Square square;
+				Piece piece;
+
+				// Kings are given a penalty for proximity to the centre in the opening 
+				// and a bonus for proximity to the centre in the endgame. The penalty 
+				// is about 24(0) points for being in the centre in the opening with a 
+				// bonus of about 36(0) points for being in the centre in the endgame. 
+				// EXCEPT when the otherside has only pawns, then the bonus is turned off.
+
+				if (m_Base.Player.OtherPlayer.Material.Count>0)
+				{
+					switch (stage)
+					{
+						case  Game.enmStage.Opening:
+							intPoints -= SquareValues[this.m_Base.Square.Ordinal] * 8;
+							break;
+						case  Game.enmStage.End:
+							intPoints += SquareValues[this.m_Base.Square.Ordinal] * 12;
+							break;
+					}
+				}
+
+				// Kings are penalized for lying on an open or half-open file or if the 
+				// adjacent file closest to the corner is open or half-open. 
+				// This penalty is up to 23(0) points in the opening and goes to zero in the end game. 
+				
+				if (stage != Game.enmStage.End)
+				{
+					bool blnHasFiendlyPawn;
+					bool blnHasEnemyPawn;
+					int intOrdinal;
+
+					// King file
+					blnHasFiendlyPawn = false;
+					blnHasEnemyPawn = false;
+					intOrdinal = this.m_Base.Square.Ordinal + this.m_Base.Player.PawnForwardOffset;
+					while ( (square = Board.GetSquare(intOrdinal))!=null )
+					{
+						piece = square.Piece;
+						if (piece!=null && piece.Name==Piece.enmName.Pawn)
+						{
+							if (piece.Player.Colour==this.m_Base.Player.Colour)
+							{
+								blnHasFiendlyPawn = true;
+							}
+							else
+							{
+								blnHasEnemyPawn = true;
+							}
+							if (blnHasFiendlyPawn || blnHasEnemyPawn) break;
+						}
+						intOrdinal += this.m_Base.Player.PawnForwardOffset;
+					}
+					if (!blnHasFiendlyPawn && !blnHasEnemyPawn || !blnHasFiendlyPawn)
+					{
+						intPoints -= 230;
+					}
+
+					// Adjacent file closest to the corner
+					blnHasFiendlyPawn = false;
+					blnHasEnemyPawn = false;
+					intOrdinal = this.m_Base.Square.Ordinal;
+					if (this.m_Base.Square.File>=4) intOrdinal++; else intOrdinal--;
+					intOrdinal += this.m_Base.Player.PawnForwardOffset;
+					while ( (square = Board.GetSquare(intOrdinal))!=null )
+					{
+						piece = square.Piece;
+						if (piece!=null && piece.Name==Piece.enmName.Pawn)
+						{
+							if (piece.Player.Colour==this.m_Base.Player.Colour)
+							{
+								blnHasFiendlyPawn = true;
+							}
+							else
+							{
+								blnHasEnemyPawn = true;
+							}
+							if (blnHasFiendlyPawn || blnHasEnemyPawn) break;
+						}
+						intOrdinal += this.m_Base.Player.PawnForwardOffset;
+					}
+					if (!blnHasFiendlyPawn && !blnHasEnemyPawn || !blnHasFiendlyPawn)
+					{
+						intPoints -= 230;
+					}
+				}
+
+				// The King is penalized up to 8(0) points if there are no pawns 
+    			// immediately adjacent. 
+
+				if (!PawnIsAdjacent(this.m_Base.Square.Ordinal))
+				{
+					intPoints -= 80;
+				}
+
+				// A penalty is invoked depending on the number of 
+    			// "safe" checks available by the opponent. This penalty ranges from 6(0) 
+    			// points for one such check to 50(0) points for 4 or more. 
+
+				intPoints -= EnemySafeChecksPenalty();
+
+				// Depending on game stage, Kings are given up to 10 points for castling and a 
+    			// penalty of up to 40 points for moving before castling. 
+
+				return intPoints;
+				//				return - (this.m_Base.NoOfMoves<<3);
+			}
+		}
+
+
+// Knight
+		public int PositionalValue
+		{
+			get
+			{
+return 0;
+				// Proximity to the centre 0 - 30
+				int intPoints = SquareValues[this.m_Base.Square.Ordinal];
+
+				int intRank = this.m_Base.Square.Rank;
+				int intFile = this.m_Base.Square.File;
+				int intRankDiff;
+				int intFileDiff;
+
+				// Knights are given a bonus for being within 2 squares of each enemy piece. This bonus is a function of 
+				// the stage of the game, equalling 4 points in the end game.
+				foreach (Piece piece in this.m_Base.Player.OtherPlayer.Pieces)
+				{
+					intFileDiff = intFile - piece.Square.File;
+					intRankDiff = intRank - piece.Square.Rank;
+					if ( intFileDiff<=2 && intFileDiff>=-2 && intRankDiff<=2 && intRankDiff>=-2 )
+					{
+						if (Game.Stage == Game.enmStage.End)
+							intPoints += 40;
+						else
+							intPoints += 20;
+					}
+				}
+
+				// A penalty of 1(0) point per square is given for distance from either king.	
+				intPoints -= 10 * Math.Max( Math.Abs(intRank-this.m_Base.Player.King.Square.Rank), Math.Abs(intFile-this.m_Base.Player.King.Square.File) );
+				intPoints -= 10 * Math.Max( Math.Abs(intRank-this.m_Base.Player.OtherPlayer.King.Square.Rank), Math.Abs(intFile-this.m_Base.Player.OtherPlayer.King.Square.File) );
+
+				// A bonus of up to 8(0) points (depends on stage) is given for knights which can't be driven away by enemy pawns.
+				if (Game.Stage != Game.enmStage.End)
+				{
+					if (!m_Base.CanBeDrivenAwayByPawn())
+					{
+						intPoints+=240;
+					}
+				}
+
+				return intPoints;
+			}
+		}
+
+
+// Pawn
+		public int PositionalValue
+		{
+			get
+			{
+				return (Game.Stage!=Game.enmStage.End ? 0 :
+											(this.m_Base.Player.Colour==Player.enmColour.White ? this.m_Base.Square.Rank-1 : 6-this.m_Base.Square.Rank)
+											* 
+											(40 + (80* (Game.MaxMaterialValue-Game.LowestMaterialValue)) / Game.MaxMaterialValue )
+						);
+
+/*
+				// Value of square
+				int intPoints = 0;
+				int intAdvancementPoints = 0;
+				Square square;
+				Piece piece;
+				int intIndex;
+
+				// Penalities
+				//  Double	 - Another pawn occupied this same file)
+				//	Isolated - No friendly pawns on immediate left or right files
+				//	Backward - Not defended by a friendly pawn. Square in front is not defended by a friendly pawn.
+				//			 - No of Attacks on backward pawn
+				//			 - On half-open file
+				//	Pawns on D or E files still at rank 2
+				//	Pawns on D or E files blocked
+				// Bonuses
+				//	Advancement (opening to ending)
+				//	Passed (opening to ending)
+				//	Proximity to Queening
+				//	Proximity to own King
+
+				bool blnIsIsolated = true;
+				bool blnIsDouble = false;
+
+				// PENALITIES
+
+				// Isolated or Doubled pawn
+				for (intIndex=this.m_Base.Player.Pawns.Count-1; intIndex>=0; intIndex--)
+				{
+					piece = this.m_Base.Player.Pawns.Item(intIndex);
+					if (piece.IsInPlay && piece!=this.m_Base)
+					{
+						if (piece.Square.File==this.m_Base.Square.File)
+						{
+							blnIsDouble = true;
+						}
+						if (piece.Square.File==this.m_Base.Square.File-1 || piece.Square.File==this.m_Base.Square.File+1)
+						{
+							blnIsIsolated = false;
+						}
+					}
+				}
+				if (blnIsIsolated)
+				{
+					switch (this.m_Base.Square.File)
+					{
+						case 0: intPoints -= 120; break;
+						case 1: intPoints -= 140; break;
+						case 2: intPoints -= 160; break;
+						case 3: intPoints -= 200; break;
+						case 4: intPoints -= 200; break;
+						case 5: intPoints -= 160; break;
+						case 6: intPoints -= 140; break;
+						case 7: intPoints -= 120; break;
+					}
+				}
+				else if (blnIsDouble)
+				{
+					intPoints -= 120;
+				}
+
+				// Backward pawn
+				bool blnIsBackward = true;
+				if ( blnIsBackward && (piece = Board.GetPiece(this.m_Base.Square.Ordinal-1                                       ))!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==this.m_Base.Player.Colour) blnIsBackward = false;
+				if ( blnIsBackward && (piece = Board.GetPiece(this.m_Base.Square.Ordinal+1                                       ))!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==this.m_Base.Player.Colour) blnIsBackward = false;
+				if ( blnIsBackward && (piece = Board.GetPiece(this.m_Base.Square.Ordinal-this.m_Base.Player.PawnAttackLeftOffset ))!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==this.m_Base.Player.Colour) blnIsBackward = false;
+				if ( blnIsBackward && (piece = Board.GetPiece(this.m_Base.Square.Ordinal-this.m_Base.Player.PawnAttackRightOffset))!=null && piece.Name==Piece.enmName.Pawn && piece.Player.Colour==this.m_Base.Player.Colour) blnIsBackward = false;
+				if (blnIsBackward)
+				{
+					intPoints -= 60;
+					// Each attack on backward pawn
+//					intPoints -= (40 * this.m_Base.Square.NoOfAttacksBy(this.m_Base.Player.OtherPlayer));
+
+					// Half-open file
+					bool blnIsHalfOpen = true;
+					square = Board.GetSquare(this.m_Base.Square.Ordinal + this.m_Base.Player.PawnForwardOffset);
+					while (square!=null)
+					{
+						piece = square.Piece;
+						if (piece!=null && piece.Name==Piece.enmName.Pawn)
+						{
+							blnIsHalfOpen = false;
+							break;
+						}
+						square = Board.GetSquare(square.Ordinal + this.m_Base.Player.PawnForwardOffset);
+					}
+					if (blnIsHalfOpen)
+					{
+						intPoints -= 40;
+					}
+				}
+
+				//	Pawns on D or E files
+				if (this.m_Base.Square.File==3 || this.m_Base.Square.File==4)
+				{
+					//	still at rank 2
+					if (this.m_Base.Player.Colour==Player.enmColour.White && this.m_Base.Square.Rank==1
+						||
+						this.m_Base.Player.Colour==Player.enmColour.Black && this.m_Base.Square.Rank==6
+						)
+					{
+						intPoints -= 100;
+					}
+					// blocked
+					if ((piece=Board.GetPiece(this.m_Base.Square.Ordinal+this.m_Base.Player.PawnForwardOffset ))!=null 
+						&&	piece.Name==Piece.enmName.Pawn
+						&&	piece.Player.Colour!=this.m_Base.Player.Colour
+						)
+					{
+						intPoints -= 150;
+					}
+
+					// Make pawns move to rank 4 in the opening
+					if (Game.Stage==Game.enmStage.Opening)
+					{
+						if (this.m_Base.Player.Colour==Player.enmColour.White && this.m_Base.Square.Rank==3
+							||
+							this.m_Base.Player.Colour==Player.enmColour.Black && this.m_Base.Square.Rank==4
+							)
+						{
+							intPoints += 150;
+						}
+					}
+				}
+
+				// BONUSES
+
+				// Within 2 squares of the king
+				int intFileDiff = this.m_Base.Square.File - this.m_Base.Player.King.Square.File;
+				int intRankDiff = this.m_Base.Square.Rank - this.m_Base.Player.King.Square.Rank;
+				if ( intFileDiff<=2 && intFileDiff>=-2 && intRankDiff<=2 && intRankDiff>=-2 )
+				{
+					intPoints += 100;
+				}
+
+				// Advancement
+				// Pawn advancement in the centre is given a bonus of about 4(0) points per rank in the opening increasing to about 
+				// 8(0) points per rank in the ending. Advancement on the edges is given a lower bonus.
+				intAdvancementPoints =	(
+											(this.m_Base.Player.Colour==Player.enmColour.White ? this.m_Base.Square.Rank-1 : 6-this.m_Base.Square.Rank)
+											* 
+											(40 + (40* (Game.MaxMaterialValue-Game.LowestMaterialValue)) / Game.MaxMaterialValue )
+										)
+										/ (this.m_Base.Square.File==0 || this.m_Base.Square.File==7 ? 2 : 1);
+
+				// Passed pawns are given a bonus for increasing rank which is a function of stage of the game and of whether the
+				// opponent blocks or attacks one or more squares in front of the pawn or if the opponents king is in the square of 
+				// the pawn. This bonus ranges from about 15(0) points for a pawn on the second rank up to about 300(0) points for a 
+				// passed pawn on the 7th rank which can't be stopped from queening. 
+
+				bool blnIsPassed = true;
+				for (intIndex=this.m_Base.Player.OtherPlayer.Pawns.Count-1; intIndex>=0; intIndex--)
+				{
+					piece = this.m_Base.Player.OtherPlayer.Pawns.Item(intIndex);
+					if (piece.IsInPlay)
+					{
+						if	(	(
+									this.m_Base.Player.Colour==Player.enmColour.White && piece.Square.Rank > this.m_Base.Square.Rank
+									||
+									this.m_Base.Player.Colour==Player.enmColour.Black && piece.Square.Rank < this.m_Base.Square.Rank
+								)
+								&&
+								(piece.Square.File==this.m_Base.Square.File || piece.Square.File==this.m_Base.Square.File-1 || piece.Square.File==this.m_Base.Square.File+1)
+								
+							)
+						{
+							blnIsPassed = false;
+						}
+					}
+				}
+				if (blnIsPassed)
+				{
+					intPoints += 150;
+					intAdvancementPoints <<= 2;
+				}
+				intPoints += intAdvancementPoints;
+
+				return	intPoints;
+*/
+			}
+}
+
+// Queen
+		public int PositionalValue
+		{
+			get
+			{
+return 0;
+				int intPoints = 0;
+
+				// The only heuristic for a queen is that after the opening it is penalized slightly for 
+				// "taxicab" distance to the enemy king.
+				if (Game.Stage != Game.enmStage.Opening)
+				{
+					intPoints -= this.m_Base.TaxCabDistanceToEnemyKingPenalty();
+				}
+
+				return intPoints;
+			}
+		}
+
+
+//Rook
+		public int PositionalValue
+		{
+			get
+			{
+return 0;
+				int intPoints = 0;
+
+				Player playerEnemy = m_Base.Player.OtherPlayer;
+
+				// Rook mobility is handled  similiarly to bishops with a bonus of 0 points if blocked up to 20 points 
+				// if attacking 12 squares or more. A bonus of 8 points for Xray attacks is handled as it is for bishops.
+				intPoints += SquaresThreatened.Count * 10;
+
+				Squares squares = new Squares();
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, 1);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, -1);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, 16);
+				Board.XRayLineThreatenedBy(m_Base.Player, squares, m_Base.Square, -16);
+				intPoints += SquaresThreatened.Count * 10;
+
+				foreach (Square square in squares)
+				{
+					// Xray attacks on any undefended piece are given an 8(0) point bonus.
+					if (square.Piece!=null && square.Piece.Player.Colour==playerEnemy.Colour && !square.IsDefendedBy(playerEnemy)) intPoints += 80;
+
+					// Xray attacks on an enemy R,Q,K are given an 8(0) point bonus.
+					if (square.Piece!=null && square.Piece.Player.Colour==playerEnemy.Colour)
+					{
+						switch (square.Piece.Name)
+						{
+							case Piece.enmName.Rook: intPoints += 80; break;
+							case Piece.enmName.Queen: intPoints += 80; break;
+							case Piece.enmName.King: intPoints += 80; break;
+						}
+					}
+				}
+
+				// Rooks are given a bonus of 10(0) points for occupying a file with no friendly pawns and a bonus of 
+				// 4(0) points if no enemy pawns lie on that file. 
+				bool blnHasFiendlyPawn = false;
+				bool blnHasEnemyPawn = false;
+				Square squareThis = Board.GetSquare(this.m_Base.Square.File, 0);
+				Piece piece;
+				while (squareThis!=null)
+				{
+					piece = squareThis.Piece;
+					if (piece!=null && piece.Name==Piece.enmName.Pawn)
+					{
+						if (piece.Player.Colour==this.m_Base.Player.Colour)
+						{
+							blnHasFiendlyPawn = true;
+						}
+						else
+						{
+							blnHasEnemyPawn = true;
+						}
+						if (blnHasFiendlyPawn && blnHasEnemyPawn) break;
+					}
+					squareThis = Board.GetSquare(squareThis.Ordinal + 16);
+				}
+				if (!blnHasFiendlyPawn)				
+				{
+					intPoints += 100;
+				}
+				if (!blnHasEnemyPawn)				
+				{
+					intPoints += 40;
+				}
+
+				// After the opening, Rooks are penalized slightly depending on "taxicab" distance to the enemy king.
+				if (Game.Stage != Game.enmStage.Opening)
+				{
+					intPoints -= this.m_Base.TaxCabDistanceToEnemyKingPenalty();
+				}
+
+				return intPoints;
+			}
+		}
+

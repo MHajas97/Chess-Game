@@ -1,0 +1,124 @@
+using System;
+
+namespace SharpChess
+{
+	public class HashTableMove: HashTableBase
+	{
+		private struct HashEntry
+		{
+			public ulong	HashCodeA;
+			public ulong	HashCodeB;
+			public Move.enmName MoveName;
+			public sbyte	From;
+			public sbyte	To;
+		}
+
+		public const int HASH_TABLE_SIZE = 1000777;
+		static HashEntry[] m_arrHashEntry = new HashEntry[HASH_TABLE_SIZE];
+
+		public static int SlotsUsed
+		{
+			get
+			{
+				int intCounter = 0;
+
+				for (uint intIndex=0; intIndex<HASH_TABLE_SIZE; intIndex++)
+				{
+					if (m_arrHashEntry[intIndex].HashCodeA != 0)
+					{
+						intCounter++;
+					}
+				}
+				return intCounter;
+			}
+		}
+
+		static HashTableMove()
+		{
+			Clear();
+		}
+
+		public static void Clear()
+		{
+			for (uint intIndex=0; intIndex<HASH_TABLE_SIZE; intIndex++)
+			{
+				m_arrHashEntry[intIndex].HashCodeA = 0;
+				m_arrHashEntry[intIndex].HashCodeB = 0;
+				m_arrHashEntry[intIndex].MoveName  = Move.enmName.NullMove;
+				m_arrHashEntry[intIndex].From = -1;
+				m_arrHashEntry[intIndex].To = -1;
+			}
+			ResetStats();
+		}
+
+		public unsafe static void RecordMove(Move.enmName MoveName, int From, int To, Player.enmColour colour)
+		{
+			fixed (HashEntry* phashBase = &m_arrHashEntry[0])
+			{
+				ulong HashCodeA = Board.HashCodeA;
+				ulong HashCodeB = Board.HashCodeB;
+
+				if (colour==Player.enmColour.Black)
+				{
+					HashCodeA |= 0x1;
+					HashCodeB |= 0x1;
+				}
+				else
+				{
+					HashCodeA &= 0xFFFFFFFFFFFFFFFE;
+					HashCodeB &= 0xFFFFFFFFFFFFFFFE;
+				}
+
+				m_intWrites++;
+
+				HashEntry* phashEntry = phashBase;
+				phashEntry += ((uint)(HashCodeA % HASH_TABLE_SIZE));
+
+				if (phashEntry->From!=-1)
+				{
+					m_intCollisions++;
+					if (phashEntry->HashCodeA!=HashCodeA || phashEntry->HashCodeB!=HashCodeB)
+					{
+						m_intOverrides++;
+					}
+				}
+
+				phashEntry->HashCodeA = HashCodeA;
+				phashEntry->HashCodeB = HashCodeB;
+				phashEntry->MoveName = MoveName;
+				phashEntry->From = (sbyte)From;
+				phashEntry->To = (sbyte)To;
+			}
+		}
+
+		public unsafe static Move ProbeForBestMove(Player.enmColour colour)
+		{
+			fixed (HashEntry* phashBase = &m_arrHashEntry[0])
+			{
+				ulong HashCodeA = Board.HashCodeA;
+				ulong HashCodeB = Board.HashCodeB;
+
+				if (colour==Player.enmColour.Black)
+				{
+					HashCodeA |= 0x1;
+					HashCodeB |= 0x1;
+				}
+				else
+				{
+					HashCodeA &= 0xFFFFFFFFFFFFFFFE;
+					HashCodeB &= 0xFFFFFFFFFFFFFFFE;
+				}
+
+				HashEntry* phashEntry = phashBase;
+				phashEntry += ((uint)(HashCodeA % HASH_TABLE_SIZE));
+				
+				if (phashEntry->HashCodeA == HashCodeA && phashEntry->HashCodeB == HashCodeB)
+				{
+					return new Move(0, 0, phashEntry->MoveName, Board.GetPiece(phashEntry->From), Board.GetSquare(phashEntry->From), Board.GetSquare(phashEntry->To), null, 0, 0);
+				}
+			}
+			return null;
+		}
+
+	}
+}
